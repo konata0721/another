@@ -13,6 +13,8 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log("JWT_SECRET =", process.env.JWT_SECRET); // ✅调试用
+
     const connection = await mysql.createConnection({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
@@ -33,10 +35,9 @@ export default async function handler(req, res) {
       return res.status(401).json({ message: '用户名或密码错误' });
     }
 
-    // 登录成功，生成包含 account 的 JWT
     const token = jwt.sign(
-      { account: user.account },  // 将 account 字段放入 JWT
-      process.env.JWT_SECRET,
+      { account: user.account },
+      process.env.JWT_SECRET, // 🔴 此处不能为 undefined
       { expiresIn: '1h' }
     );
 
