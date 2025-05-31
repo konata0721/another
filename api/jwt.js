@@ -8,7 +8,8 @@ export function verifyToken(req) {
   if (type !== 'Bearer' || !token) return null;
 
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    // 这里用固定密钥 konata235 验证
+    return jwt.verify(token, 'konata235');
   } catch {
     return null;
   }
