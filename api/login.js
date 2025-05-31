@@ -7,14 +7,11 @@ export default async function handler(req, res) {
   }
 
   const { name, password } = req.body;
-
   if (!name || !password) {
     return res.status(400).json({ message: '用户名和密码不能为空' });
   }
 
   try {
-    console.log("JWT_SECRET =", process.env.JWT_SECRET); // ✅调试用
-
     const connection = await mysql.createConnection({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
@@ -26,18 +23,17 @@ export default async function handler(req, res) {
       'SELECT id, name, password, account FROM login WHERE name = ?',
       [name]
     );
-
     await connection.end();
 
     const user = rows[0];
-
     if (!user || user.password !== password) {
       return res.status(401).json({ message: '用户名或密码错误' });
     }
 
+    // 写死 JWT 密钥
     const token = jwt.sign(
       { account: user.account },
-      process.env.JWT_SECRET, // 🔴 此处不能为 undefined
+      '0d000721',  // 🔒 写死密钥
       { expiresIn: '1h' }
     );
 
