@@ -34,7 +34,7 @@ export default async function handler(req, res) {
 
     // 查询 historyorders 表
     const [rows] = await connection.execute(
-      'SELECT id, `订单时间`, account, `交易名称` FROM historyorders WHERE account = ?',
+      'SELECT id, ordertime, account, ordername FROM historyorders WHERE account = ?',
       [account]
     );
 
