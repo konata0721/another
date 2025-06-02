@@ -1,37 +1,31 @@
+您说：
 import mysql from 'mysql2/promise';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from './jwt';  // 你已有的验证函数
 
 export default async function handler(req, res) {
+  // 设置 CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  // 处理预检请求
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
+  // 限制请求方法
   if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
+    return res.status(405).json({ message: '只支持 GET 请求' });
   }
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // 验证 Token
+  const payload = verifyToken(req);
+  if (!payload) {
     return res.status(401).json({ message: '未授权访问' });
   }
 
-  const token = authHeader.split(' ')[1];
-  let decoded;
+  const account = payload.account;
 
   try {
-    // 这里写死密钥 '0d000721'
-    decoded = jwt.verify(token, '0d000721');
-  } catch (err) {
-    return res.status(401).json({ message: '无效 Token' });
-  }
-
-  const account = decoded.account;
-
-  try {
+    // 数据库连接
     const connection = await mysql.createConnection({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
@@ -39,21 +33,20 @@ export default async function handler(req, res) {
       database: 'test999'
     });
 
+    // 查询 historyorders 表
     const [rows] = await connection.execute(
-      'SELECT id, timestamp, account, items FROM orders WHERE account = ?',
+      'SELECT id, ordertime, account, ordername FROM historyorders WHERE account = ?',
       [account]
     );
 
-    const mappedRows = rows.map(row => ({
-      id: row.id,
-      订单时间: row.timestamp,
-      account: row.account,
-      交易名称: row.items
-    }));
-
-    res.status(200).json({ message: '查询成功', data: mappedRows });
     await connection.end();
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: '未找到历史订单' });
+    }
+
+    return res.status(200).json({ message: '查询成功', data: rows });
   } catch (error) {
-    res.status(500).json({ message: '查询失败', error: error.message });
+    return res.status(500).json({ message: '查询失败', error: error.message });
   }
 }
