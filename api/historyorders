@@ -1,45 +1,59 @@
-// api/orders.js
+import mysql from 'mysql2/promise';
+import jwt from 'jsonwebtoken';
 
-/**
- * 查询历史订单
- * @param {string} token - JWT 授权 Token
- * @returns {Promise<object>} 查询结果对象，包含 message 和 data（订单数组）
- */
-export async function fetchOrderHistory(token) {
-  const url = 'https://another-mshb.vercel.app/api/historyorders';
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: '未授权访问' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  let decoded;
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
+    // 这里写死密钥 '0d000721'
+    decoded = jwt.verify(token, '0d000721');
+  } catch (err) {
+    return res.status(401).json({ message: '无效 Token' });
+  }
+
+  const account = decoded.account;
+
+  try {
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: 'test999'
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP 错误：${response.status}`);
-    }
+    const [rows] = await connection.execute(
+      'SELECT id, timestamp, account, items FROM orders WHERE account = ?',
+      [account]
+    );
 
-    const result = await response.json();
-
-    // 映射字段名：timestamp -> 订单时间, items -> 交易名称
-    const mappedData = result.data.map(order => ({
-      id: order.id,
-      订单时间: order.timestamp,
-      account: order.account,
-      交易名称: order.items
+    const mappedRows = rows.map(row => ({
+      id: row.id,
+      订单时间: row.timestamp,
+      account: row.account,
+      交易名称: row.items
     }));
 
-    return {
-      message: result.message,
-      data: mappedData
-    };
+    res.status(200).json({ message: '查询成功', data: mappedRows });
+    await connection.end();
   } catch (error) {
-    console.error('获取订单历史失败：', error);
-    return {
-      message: '获取订单历史失败',
-      data: []
-    };
+    res.status(500).json({ message: '查询失败', error: error.message });
   }
 }
