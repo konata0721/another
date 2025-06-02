@@ -1,55 +1,45 @@
-import jwt from 'jsonwebtoken';
+// api/orders.js
 
-const JWT_SECRET = '0d000721';  // 写死的密钥
-
-export function verifyToken(req) {
-  const authHeader = req.headers.authorization || req.headers.Authorization;
-  if (!authHeader) {
-    console.log('请求头中缺少 Authorization');
-    return null;
-  }
-
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
-    console.log('Authorization 格式错误:', authHeader);
-    return null;
-  }
-
-  const token = parts[1];
-  if (!token) {
-    console.log('Authorization 中未找到 token');
-    return null;
-  }
+/**
+ * 查询历史订单
+ * @param {string} token - JWT 授权 Token
+ * @returns {Promise<object>} 查询结果对象，包含 message 和 data（订单数组）
+ */
+export async function fetchOrderHistory(token) {
+  const url = 'https://another-mshb.vercel.app/api/historyorders';
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    return payload;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP 错误：${response.status}`);
+    }
+
+    const result = await response.json();
+
+    // 映射字段名：timestamp -> 订单时间, items -> 交易名称
+    const mappedData = result.data.map(order => ({
+      id: order.id,
+      订单时间: order.timestamp,
+      account: order.account,
+      交易名称: order.items
+    }));
+
+    return {
+      message: result.message,
+      data: mappedData
+    };
   } catch (error) {
-    console.log('Token 验证失败:', error.message);
-    return null;
+    console.error('获取订单历史失败：', error);
+    return {
+      message: '获取订单历史失败',
+      data: []
+    };
   }
-}
-
-export default async function handler(req, res) {
-  console.log('请求头 Authorization:', req.headers.authorization);
-
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: '只支持 GET 请求' });
-  }
-
-  const payload = verifyToken(req);
-  if (!payload) {
-    return res.status(401).json({ message: '未授权访问，请提供有效的 Bearer Token' });
-  }
-
-  const account = payload.account;
-
-  // 这里是你之前写的数据库查询逻辑
-  // 简单示例：
-  res.status(200).json({ message: '授权通过', account });
 }
